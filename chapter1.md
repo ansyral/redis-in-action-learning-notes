@@ -10,11 +10,15 @@
         ~/redis-4.0.6: $ redis-server redis.conf
         ```
 
-        it would show like something like below: ![start redis server](./images/install-start-server.PNG)
+        it would show something like below:
+
+        ![start redis server](./images/install-start-server.PNG)
 
     * Install Redis python client
 
         Open a new terminal, this step is to install redis client.
         For this part, I didn't follow the steps in the book as it is kind of old. I just follow the readme in [redis-py](https://github.com/andymccurdy/redis-py).
 
-        I also checked it worked: ![test redis](./images/install-test-redis.PNG)
+        I also checked it worked:
+
+        ![test redis](./images/install-test-redis.PNG)
