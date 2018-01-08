@@ -22,3 +22,20 @@
         I also checked it worked:
 
         ![test redis](./images/install-test-redis.PNG)
+
+2. Redis data structure
+
+    Redis stores Key-Value pairs. *Key* is name string, *Value* supports `String`, `List(l)`, `Set(s)`, `Hash(h)`, `Sorted set(z)`.
+
+    ![Data structures](./images/redis-data-structures.PNG)
+
+    #### String:
+    it contains string, integrer, float
+    #### List: 
+    linked list of [String](#string)s
+    #### Set:
+    unordered collection of unique [String](#string)s
+    #### Hash:
+    unordered hash table of keys to [String](#string)s.
+    #### Sorted set:
+    Ordered mapping of [String](#string)s to float scores, ordered by score.
