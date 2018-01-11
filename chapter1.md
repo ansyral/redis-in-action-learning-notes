@@ -30,7 +30,7 @@
     ![Data structures](./images/redis-data-structures.PNG)
 
     #### String:
-    it contains string, integrer, float
+    it contains string, integer, float
     #### List: 
     linked list of [String](#string)s
     #### Set:
