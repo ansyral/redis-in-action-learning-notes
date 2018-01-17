@@ -71,4 +71,47 @@
       - `auto-aof-rewrite-percentage`
       - `auto-aof-rewrite-min-size`
 
-        Because AOF record all the commands, the log file will continuously grow. Redis provides `bgrewriteaof` command to rewrite AOF to be as short as possible by removing redundant commands. You can configure Redis to enable automatic `bgrewriteaof` execution using `auto-aof-rewrite-percentage` and `auto-aof-rewrite-min-size`. Using the example values of auto-aof-rewrite-percentage 100 and auto-aof-rewrite-min-size 64mb, when AOF is enabled, Redis will initiate a `bgrewriteaof` when the AOF is at least 100% larger than it was when Redis last finished rewriting the AOF, and when the AOF is at least 64 megabytes in size. 
+        Because AOF record all the commands, the log file will continuously grow. Redis provides `bgrewriteaof` command to rewrite AOF to be as short as possible by removing redundant commands. You can configure Redis to enable automatic `bgrewriteaof` execution using `auto-aof-rewrite-percentage` and `auto-aof-rewrite-min-size`. Using the example values of auto-aof-rewrite-percentage 100 and auto-aof-rewrite-min-size 64mb, when AOF is enabled, Redis will initiate a `bgrewriteaof` when the AOF is at least 100% larger than it was when Redis last finished rewriting the AOF, and when the AOF is at least 64 megabytes in size.
+
+2. Scaling---Replication
+
+   You can configure Redis for master/slave operation to help scale out read queries. Namely, master sends write out to multiple slaves, with slaves performing all of the read queries.
+
+   Redis replication startup process:
+   ![Redis replication startup process](./images/redis-replication-process.PNG)
+
+   Ways to trigger replication:
+   - configuration: `slaveof [host] [port]`
+     Use this option, then Redis would initially load whatever snapshot/aof currently available and then connect to the master to start replication process.
+   - command `slaveof` during runtime.
+     Use this option, Redis immediately try to connect to master to start replication process.
+
+   Master/slave chains: when read load significantly outweights write load, single master cannot write to all of its slaves fast enough. We can set up a layer of intermediate Redis master/slave nodes that can help with replication duties.
+
+   ![example](./images/master-slave-chain.jpg)
+
+   Now we have multiple slaves, we need to verify data gets to disk on multiple machines:
+
+   ```python
+    def wait_for_sync(mconn, sconn):
+    identifier = str(uuid.uuid4())
+    mconn.zadd('sync:wait', identifier, time.time())
+
+    while not sconn.info()['master_link_status'] != 'up':
+        time.sleep(.001)
+
+    while not sconn.zscore('sync:wait', identifier):
+        time.sleep(.001)
+
+    deadline = time.time() + 1.01
+    while time.time() < deadline:
+        if sconn.info()['aof_pending_bio_fsync'] == 0:
+            break
+        time.sleep(.001)
+
+    mconn.zrem('sync:wait', identifier)
+    mconn.zremrangebyscore('sync:wait', 0, time.time()-900)
+   ```
+
+   When a nodes fails, we need to replace it. Below is a sample of operating commands to replace a failed master node by copying a snapshot from a slave to another node(new master node) and assign the slave to new master node.
+   ![operating commands](./images/replace-a-failed-master.jpg)
