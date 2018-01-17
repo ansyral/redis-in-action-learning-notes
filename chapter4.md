@@ -75,7 +75,7 @@
 
 2. Scaling---Replication
 
-   You can configure Redis for master/slave operation to help scale out read queries. Namely, master sends write out to multiple slaves, with slaves performing all of the read queries.
+   You can configure Redis for **master/slave** operation to help scale out read queries. Namely, master sends write out to multiple slaves, with slaves performing all of the read queries.(client would choose slave in a random fashion to balance the load)
 
    Redis replication startup process:
    ![Redis replication startup process](./images/redis-replication-process.PNG)
@@ -86,11 +86,13 @@
    - command `slaveof` during runtime.
      Use this option, Redis immediately try to connect to master to start replication process.
 
-   Master/slave chains: when read load significantly outweights write load, single master cannot write to all of its slaves fast enough. We can set up a layer of intermediate Redis master/slave nodes that can help with replication duties.
+   Master/slave chains:
+
+   when read load significantly outweights write load, single master cannot write to all of its slaves fast enough. We can set up a layer of intermediate Redis master/slave nodes that can help with replication duties.
 
    ![example](./images/master-slave-chain.jpg)
 
-   Now we have multiple slaves, we need to verify data gets to disk on multiple machines:
+   With replication we have multiple slaves, we need to verify data gets to disk on multiple machines:
 
    ```python
     def wait_for_sync(mconn, sconn):
@@ -115,3 +117,42 @@
 
    When a nodes fails, we need to replace it. Below is a sample of operating commands to replace a failed master node by copying a snapshot from a slave to another node(new master node) and assign the slave to new master node.
    ![operating commands](./images/replace-a-failed-master.jpg)
+
+   `Redis Sentinel` is a tool to automatically handle failover.
+
+3. Transaction Optimistic lock
+
+   Redis has a command `watch` which could provide an optimistic lock. Compared to relational database which locks the rows that are accessed until commit or rollback to keep isolation in a transaction, `watch` won't lock data, therefore won't block client. Only till you `exec`, would Redis then check whether the data has been updated, if so, the `exec` operation would fail.
+
+   Below is a sample of using `watch` in a transaction:
+   ```python
+    def purchase_item(conn, buyerid, itemid, sellerid, lprice):
+    buyer = "users:%s"%buyerid
+    seller = "users:%s"%sellerid
+    item = "%s.%s"%(itemid, sellerid)
+    inventory = "inventory:%s"%buyerid
+    end = time.time() + 10
+    pipe = conn.pipeline()
+
+    while time.time() < end:
+        try:
+            pipe.watch("market:", buyer)
+
+            price = pipe.zscore("market:", item)
+            funds = int(pipe.hget(buyer, "funds"))
+            if price != lprice or price > funds:
+                pipe.unwatch()
+                return None
+
+            pipe.multi()
+            pipe.hincrby(seller, "funds", int(price))
+            pipe.hincrby(buyer, "funds", int(-price))
+            pipe.sadd(inventory, itemid)
+            pipe.zrem("market:", item)
+            pipe.execute()
+            return True
+        except redis.exceptions.WatchError:
+            pass
+
+    return False
+   ```
